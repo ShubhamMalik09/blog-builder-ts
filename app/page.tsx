@@ -1,64 +1,134 @@
+"use client"
+
 import Image from "next/image";
+import Link from "next/link";
+import { RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { PlusIcon } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import BlogList from "@/components/BlogList/BlogList";
+import { logout } from "@/lib/utils";
+import BlogFilter from "@/components/BlogList/BlogFilters";
+import { BlogFilters } from "@/types/blog.types";
+
+
+const INITIAL_FILTERS: BlogFilters = {
+  status: null,
+  primary_tag_id: null,
+  industry_ids: null,
+  search: "",
+  sort_by: "updated_at",
+  sort_order: "desc",
+  page: 1,
+  page_size: 9,
+};
+
 
 export default function Home() {
+  const [page, setPage] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [initialLoading, setInitialLoading] = useState<boolean>(true);
+  const [filters, setFilters] = useState<BlogFilters>(INITIAL_FILTERS);
+
+  const observerTarget: RefObject<HTMLDivElement | null> = useRef(null);
+
+  const limit = 9;
+  const hasMore = page * limit < totalCount;
+
+  const handleFilterChange = useCallback(
+    (newFilters: Partial<BlogFilters>) => {
+      setFilters((prev) => ({ ...prev, ...newFilters }));
+      setPage(1);
+    },
+    []
+  );
+
+  const handleReset = useCallback(() => {
+    setFilters(INITIAL_FILTERS);
+    setPage(1);
+  }, []);
+
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      setPage((prev) => prev + 1);
+    }
+  }, [loading, hasMore]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) observer.observe(currentTarget);
+
+    return () => {
+      if (currentTarget) observer.unobserve(currentTarget);
+    };
+  }, [loadMore]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100">
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-black">
+            Wokelo Blog Builder
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+
+          <div className='flex items-center gap-2'>
+            <Button asChild className="bg-black text-white hover:bg-gray-800">
+              <Link href="/editor/new" className="flex gap-1 items-center">
+                <PlusIcon />
+                Create Blog
+              </Link>
+            </Button>
+
+            <Button variant="destructive" onClick={logout}>
+              Logout
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-6 py-12">
+        <BlogFilter
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onReset={handleReset}
+        />
+
+        <BlogList
+          page={page} 
+          limit={limit}
+          filters={filters}
+          setTotalCount={setTotalCount}
+          setLoading={setLoading}
+          setInitialLoading={setInitialLoading}
+        />
+
+        {loading && !initialLoading && (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <Skeleton className="w-full h-48" />
+                <div className="p-6 space-y-3">
+                  <Skeleton className="h-6 w-20" />
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasMore && <div ref={observerTarget} className="h-4" />}
       </main>
     </div>
   );
